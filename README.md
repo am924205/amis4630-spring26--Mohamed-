@@ -21,7 +21,7 @@ Buckeye Marketplace is an OSU-only marketplace platform designed to improve safe
 
 ## Kanban Board
 
-GitHub Project Board: (PASTE YOUR PROJECT BOARD LINK HERE)
+GitHub Project Board: https://github.com/users/am924205/projects/2
 
 ---
 
