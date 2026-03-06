@@ -1,0 +1,19 @@
+# .NET
+api/bin/
+api/obj/
+
+# React / Node
+frontend/node_modules/
+frontend/build/
+frontend/.env
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*.sln.user
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
