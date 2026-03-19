@@ -1,6 +1,9 @@
 # .NET
 api/bin/
 api/obj/
+*.db
+*.db-shm
+*.db-wal
 
 # React / Node
 frontend/node_modules/
