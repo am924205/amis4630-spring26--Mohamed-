@@ -1,12 +1,24 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Product } from "../types/Product";
+import { useCart } from "../context/CartContext";
 
 interface ProductCardProps {
   product: Product;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+  const { addToCart } = useCart();
+  const [adding, setAdding] = useState(false);
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault(); // prevent Link navigation
+    e.stopPropagation();
+    setAdding(true);
+    await addToCart(product.id);
+    setAdding(false);
+  };
+
   return (
     <Link to={`/products/${product.id}`} className="product-card">
       <img src={product.imageUrl} alt={product.title} className="product-card__image" />
@@ -15,6 +27,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         <h3 className="product-card__title">{product.title}</h3>
         <p className="product-card__price">${product.price.toFixed(2)}</p>
         <p className="product-card__seller">Seller: {product.sellerName}</p>
+        <button
+          className="add-to-cart-btn"
+          onClick={handleAddToCart}
+          disabled={adding}
+        >
+          {adding ? "Adding..." : "Add to Cart"}
+        </button>
       </div>
     </Link>
   );

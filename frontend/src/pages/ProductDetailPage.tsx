@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Product } from "../types/Product";
+import { useCart } from "../context/CartContext";
 
 const API_BASE = "http://localhost:5062";
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { addToCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/products/${id}`)
@@ -55,6 +58,17 @@ const ProductDetailPage: React.FC = () => {
           <h1 className="detail-title">{product.title}</h1>
           <p className="detail-price">${product.price.toFixed(2)}</p>
           <p className="detail-description">{product.description}</p>
+          <button
+            className="add-to-cart-btn detail-add-btn"
+            disabled={adding}
+            onClick={async () => {
+              setAdding(true);
+              await addToCart(product.id);
+              setAdding(false);
+            }}
+          >
+            {adding ? "Adding..." : "Add to Cart"}
+          </button>
           <div className="detail-meta">
             <p><strong>Seller:</strong> {product.sellerName}</p>
             <p><strong>Posted:</strong> {formattedDate}</p>
