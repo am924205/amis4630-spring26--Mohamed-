@@ -1,8 +1,14 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using BuckeyeMarketplaceApi.Data;
 using BuckeyeMarketplaceApi.Models;
+using BuckeyeMarketplaceApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,11 +16,85 @@ builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=BuckeyeMarketplace.db"));
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseSqlite(
+            builder.Configuration.GetConnectionString("Default")
+            ?? "Data Source=BuckeyeMarketplace.db"));
+}
+
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    options.Password.RequiredLength = 8;
+    options.Password.RequireDigit = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.User.RequireUniqueEmail = true;
+})
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
+
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(jwtKey))
+{
+    // Fallback only for Testing environment — never in Development or Production.
+    if (builder.Environment.EnvironmentName == "Testing")
+    {
+        jwtKey = "test-environment-insecure-key-0123456789-abcdef";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Jwt:Key is not configured. Set it via user secrets: " +
+            "dotnet user-secrets set Jwt:Key \"<at-least-32-character-random-key>\"");
+    }
+}
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "BuckeyeMarketplace";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "BuckeyeMarketplaceClient";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ClockSkew = TimeSpan.FromSeconds(30)
+    };
+});
+
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Buckeye Marketplace API", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter: Bearer {your JWT token}"
+    });
+    c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
+    {
+        { new OpenApiSecuritySchemeReference("Bearer"), new List<string>() }
+    });
+});
 
 builder.Services.AddCors(options =>
 {
@@ -28,28 +108,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Seed the database with product data
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-
-    if (!db.Products.Any())
-    {
-        db.Products.AddRange(
-            new Product { Id = 1, Title = "Discrete Mathematics Textbook", Description = "Used textbook for CSE 2321. Some highlighting but overall good condition. Covers logic, sets, graphs, and combinatorics.", Price = 45.00m, Category = "Textbooks", SellerName = "Marcus J.", PostedDate = new DateTime(2026, 2, 10), ImageUrl = "https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400&h=300&fit=crop" },
-            new Product { Id = 2, Title = "Apple MacBook Air M2", Description = "2023 MacBook Air, Space Gray, 8GB RAM, 256GB SSD. Barely used — switched to a desktop setup. Includes charger.", Price = 749.99m, Category = "Electronics", SellerName = "Aisha R.", PostedDate = new DateTime(2026, 2, 14), ImageUrl = "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=300&fit=crop" },
-            new Product { Id = 3, Title = "IKEA Shelf", Description = "White 4-cube shelf, perfect for dorm or apartment. Minor scuff on the bottom. Pick up near campus.", Price = 30.00m, Category = "Furniture", SellerName = "Jake T.", PostedDate = new DateTime(2026, 2, 18), ImageUrl = "https://images.unsplash.com/photo-1594620302200-9a762244a156?w=400&h=300&fit=crop" },
-            new Product { Id = 4, Title = "OSU Hoodie (XL)", Description = "Official Ohio State hoodie, size XL. Worn a few times, still looks brand new. Scarlet and gray.", Price = 55.00m, Category = "Clothing", SellerName = "Destiny W.", PostedDate = new DateTime(2026, 2, 20), ImageUrl = "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400&h=300&fit=crop" },
-            new Product { Id = 5, Title = "TI-84 Plus CE Graphing Calculator", Description = "Required for several math and science courses. Works perfectly, comes with USB cable. Selling because I graduated from those courses.", Price = 60.00m, Category = "Electronics", SellerName = "Chris L.", PostedDate = new DateTime(2026, 2, 22), ImageUrl = "https://images.unsplash.com/photo-1564939558297-fc396f18e5c7?w=400&h=300&fit=crop" },
-            new Product { Id = 6, Title = "Principles of Marketing", Description = "Lightly used for BUSMKT 2320. No writing or highlights. Comes with MyLab access card.", Price = 38.00m, Category = "Textbooks", SellerName = "Nina P.", PostedDate = new DateTime(2026, 2, 25), ImageUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=300&fit=crop" },
-            new Product { Id = 7, Title = "Standing Desk", Description = "Adjustable standing desk riser, fits on top of any desk. Great for long study sessions. Black finish.", Price = 85.00m, Category = "Furniture", SellerName = "Marcus J.", PostedDate = new DateTime(2026, 2, 28), ImageUrl = "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&h=300&fit=crop" },
-            new Product { Id = 8, Title = "Sony WH-1000XM5 Headphones", Description = "Noise-canceling over-ear headphones. Perfect for studying in Thompson Library. Includes case and cable.", Price = 199.99m, Category = "Electronics", SellerName = "Aisha R.", PostedDate = new DateTime(2026, 3, 1), ImageUrl = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop" },
-            new Product { Id = 9, Title = "Buckeye Football Hoodie (L)", Description = "Officially licensed Ohio State football hoodie, size Large. Comfortable and warm. Go Bucks!", Price = 35.00m, Category = "Clothing", SellerName = "Jake T.", PostedDate = new DateTime(2026, 3, 2), ImageUrl = "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=400&h=300&fit=crop" },
-            new Product { Id = 10, Title = "Introduction to Economics", Description = "Intro economics textbook. Used for ECON 2001. Some tabs on pages but no writing inside. Covers micro and macro fundamentals.", Price = 50.00m, Category = "Textbooks", SellerName = "Chris L.", PostedDate = new DateTime(2026, 3, 3), ImageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop" }
-        );
-        db.SaveChanges();
-    }
+    using var scope = app.Services.CreateScope();
+    await DbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 if (app.Environment.IsDevelopment())
@@ -58,7 +120,24 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
+
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"] = "DENY";
+    ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+
 app.UseCors("AllowReactApp");
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

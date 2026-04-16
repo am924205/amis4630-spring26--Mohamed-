@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Product } from "../types/Product";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5062";
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { addToCart } = useCart();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +65,10 @@ const ProductDetailPage: React.FC = () => {
             className="add-to-cart-btn detail-add-btn"
             disabled={adding}
             onClick={async () => {
+              if (!isAuthenticated) {
+                navigate("/login", { state: { from: `/products/${product.id}` } });
+                return;
+              }
               setAdding(true);
               await addToCart(product.id);
               setAdding(false);

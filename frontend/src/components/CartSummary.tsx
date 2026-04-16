@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 interface CartSummaryProps {
   totalItems: number;
@@ -20,6 +21,9 @@ const CartSummary: React.FC<CartSummaryProps> = ({ totalItems, subtotal, total, 
         <span>Total</span>
         <span>${total.toFixed(2)}</span>
       </div>
+      <Link to="/checkout" className="auth-submit cart-summary__checkout">
+        Proceed to Checkout
+      </Link>
       <button className="cart-summary__clear" onClick={onClearCart}>
         Clear Cart
       </button>

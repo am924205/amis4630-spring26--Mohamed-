@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Product } from "../types/Product";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 interface ProductCardProps {
   product: Product;
@@ -9,11 +10,17 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { addToCart } = useCart();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
 
   const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault(); // prevent Link navigation
+    e.preventDefault();
     e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: "/" } });
+      return;
+    }
     setAdding(true);
     await addToCart(product.id);
     setAdding(false);

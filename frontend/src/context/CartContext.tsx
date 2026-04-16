@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from "react";
 import { Cart, CartItem } from "../types/Cart";
 import * as cartService from "../services/cartService";
+import { useAuth } from "./AuthContext";
 
 // State shape
 interface CartState {
@@ -94,6 +95,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, initialState);
+  const { isAuthenticated } = useAuth();
 
   const refreshCart = useCallback(async () => {
     dispatch({ type: "FETCH_START" });
@@ -105,10 +107,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Load cart on mount
+  // Reload cart when auth state changes (login/logout) and on mount
   useEffect(() => {
-    refreshCart();
-  }, [refreshCart]);
+    if (isAuthenticated) {
+      refreshCart();
+    } else {
+      dispatch({ type: "FETCH_SUCCESS", payload: null });
+    }
+  }, [isAuthenticated, refreshCart]);
 
   // Auto-clear notifications after 3 seconds
   useEffect(() => {

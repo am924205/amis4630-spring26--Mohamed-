@@ -23,6 +23,7 @@ Buckeye Marketplace is an OSU-only marketplace platform designed to improve safe
   - [Cart Features](#cart-features)
   - [Cart API Endpoints](#cart-api-endpoints)
   - [M4 AI Usage Summary](#m4-ai-usage-summary)
+- [Milestone 5: Auth, Orders & Admin](#milestone-5-auth-orders--admin)
 
 ---
 
@@ -326,3 +327,64 @@ Below is documentation of how AI tools were used during Milestone 4, what was ac
 #### Overall
 
 AI assisted with boilerplate and standard React patterns. Key decisions I made independently: optimistic UI update strategy, notification system design, 404-as-empty-cart handling, quantity validation alignment with backend rules, accessibility attributes, and all styling choices to maintain the OSU scarlet theme. Every piece of generated code was reviewed, tested with the running API, and modified before committing.
+
+---
+
+## Milestone 5: Auth, Orders & Admin
+
+Milestone 5 adds authentication, role-based authorization, order processing, admin tooling, automated tests, and submission documentation on top of the Milestone 4 cart slice.
+
+### What's new
+
+- **ASP.NET Core Identity + JWT.** `ApplicationUser` extends `IdentityUser`; `POST /api/auth/register` and `POST /api/auth/login` return a signed JWT plus user info. `JwtTokenService` signs HS256 tokens with a key read from user-secrets.
+- **Role-based authorization.** `Admin` and `User` roles are seeded on first run. Product create/update/delete and order list/status endpoints require `Admin`. Cart and order-placement endpoints require an authenticated `User`.
+- **Order placement.** `POST /api/orders` turns the caller's cart into an order, clears the cart, and returns a confirmation number. `GET /api/orders/mine` lists the caller's history. `GET /api/orders/{id}` returns a single order only if it belongs to the caller (or the caller is admin) — cross-user lookups return 404, not 403, to avoid leaking existence.
+- **Admin UI.** `/admin`, `/admin/products` (inline CRUD), `/admin/orders` (status dropdown).
+- **Auth-aware frontend.** `AuthContext` + reducer, `apiClient` attaches the bearer token to every API call, `ProtectedRoute` guards authenticated and admin-only pages, `LoginPage`/`RegisterPage`/`CheckoutPage`/`OrderConfirmationPage`/`OrderHistoryPage`.
+
+### Security practices applied
+
+1. JWT signing key stored in user-secrets; `Program.cs` refuses to start if `Jwt:Key` is missing outside the `Testing` environment.
+2. BOLA guard: user ID is always pulled from the JWT's `NameIdentifier`/`sub` claim — never from a request parameter.
+3. All DB access uses EF Core LINQ — no `FromSqlRaw` with string interpolation.
+4. Security headers middleware sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer`.
+5. Passwords hashed with Identity's default PBKDF2 hasher; password policy (8+ chars, 1 uppercase, 1 digit) enforced server- and client-side.
+6. Admin-only mutation endpoints gated with `[Authorize(Roles = "Admin")]` and covered by an integration test that asserts a user-role token gets a 403.
+
+### Tests
+
+- Backend: `dotnet test` runs 17 xUnit tests (password rule, order calculator, register validator, and three integration tests against `WebApplicationFactory<Program>` using EF Core InMemory).
+- Frontend: `CI=true npm test -- --watchAll=false` runs 13 Jest/RTL tests across validation helpers, the auth reducer, and the login form.
+- E2E: `frontend/e2e/checkout.spec.ts` is a Playwright happy path (register → add to cart → checkout → confirmation → order history). Run notes and agent prompts are in [docs/e2e-run.md](docs/e2e-run.md).
+
+### How to run (Milestone 5)
+
+```bash
+# Set JWT secrets locally (first run only)
+cd api
+dotnet user-secrets set "Jwt:Key" "dev-secret-key-buckeye-marketplace-2026-abcdef0123456789-xyz"
+dotnet user-secrets set "Jwt:Issuer" "BuckeyeMarketplace"
+dotnet user-secrets set "Jwt:Audience" "BuckeyeMarketplaceClient"
+dotnet user-secrets set "Jwt:ExpiresMinutes" "120"
+dotnet run
+```
+
+```bash
+# In a second terminal
+cd frontend
+npm install
+npm start
+```
+
+Seeded accounts (created on first run against a fresh DB):
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | admin@buckeyemarketplace.com | Admin123! |
+| User | user@buckeyemarketplace.com | User1234! |
+
+### Submission artifacts
+
+- [SUBMISSION.md](SUBMISSION.md) — full run/test/secret instructions and the security checklist.
+- [AI-USAGE.md](AI-USAGE.md) — honest account of how Claude Code was used as a pair-programming assistant during this milestone.
+- [CHANGELOG.md](CHANGELOG.md) — Added/Security/Changed/Removed notes for M5.
