@@ -26,17 +26,20 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
-        run: dotnet restore amis4630-spring26--Mohamed-.sln
+      - name: Restore API
+        run: dotnet restore api/BuckeyeMarketplaceApi.csproj
 
-      - name: Build
-        run: dotnet build amis4630-spring26--Mohamed-.sln --configuration Release --no-restore
+      - name: Restore tests
+        run: dotnet restore api.Tests/BuckeyeMarketplaceApi.Tests.csproj
+
+      - name: Build tests (also builds API via project reference)
+        run: dotnet build api.Tests/BuckeyeMarketplaceApi.Tests.csproj --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test amis4630-spring26--Mohamed-.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test api.Tests/BuckeyeMarketplaceApi.Tests.csproj --configuration Release --no-build --verbosity normal
 
       - name: Publish API
-        run: dotnet publish api/BuckeyeMarketplaceApi.csproj --configuration Release --no-build --output ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        run: dotnet publish api/BuckeyeMarketplaceApi.csproj --configuration Release --output ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

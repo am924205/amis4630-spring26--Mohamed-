@@ -19,13 +19,13 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore amis4630-spring26--Mohamed-.sln
+        run: dotnet restore api.Tests/BuckeyeMarketplaceApi.Tests.csproj
 
       - name: Build
-        run: dotnet build amis4630-spring26--Mohamed-.sln --configuration Release --no-restore
+        run: dotnet build api.Tests/BuckeyeMarketplaceApi.Tests.csproj --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test amis4630-spring26--Mohamed-.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test api.Tests/BuckeyeMarketplaceApi.Tests.csproj --configuration Release --no-build --verbosity normal
 
   frontend:
     name: Frontend Build & Test
