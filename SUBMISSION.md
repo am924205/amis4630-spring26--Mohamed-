@@ -1,76 +1,91 @@
-# Milestone 5 Submission — Buckeye Marketplace
+# Milestone 6 Submission — Buckeye Marketplace v1.0
 
 ## Repository
-Submitted via LMS: https://github.com/am924205/sp-26-cartworkshop
-Main branch: **main**. Grader should pull `main` and run the steps below.
+GitHub: https://github.com/am924205/amis4630-spring26--Mohamed-
+Branch graded: **main** (tagged `v1.0`).
+
+## Live application URLs
+- **Frontend (Azure Static Web Apps):** https://agreeable-field-09f60e210.7.azurestaticapps.net
+- **Backend API (Azure App Service):** https://buckeye-api-mohamed560.azurewebsites.net
+- **Swagger / API docs:** https://buckeye-api-mohamed560.azurewebsites.net/swagger
 
 ## Test credentials
 The seeder (`api/Data/DbSeeder.cs`) creates these accounts on first run against a fresh database:
 
-| Role        | Email                                | Password     |
-|-------------|--------------------------------------|--------------|
-| Admin       | admin@buckeyemarketplace.com         | Admin123!    |
-| Regular user| user@buckeyemarketplace.com          | User1234!    |
+| Role         | Email                          | Password   |
+|--------------|--------------------------------|------------|
+| Admin        | admin@buckeyemarketplace.com   | Admin123!  |
+| Regular user | user@buckeyemarketplace.com    | User1234!  |
 
 New accounts registered through the UI are assigned the `User` role automatically.
 
-## User secrets (graders: set these locally)
-The JWT signing key is **not** committed to the repo. Run from the `api/` folder before starting the API:
+## Documentation
+- [README.md](README.md) — full project overview, technology stack, setup, deployment, API docs, AI usage summary.
+- [docs/deployment.md](docs/deployment.md) — Azure resource provisioning + GitHub Actions wiring.
+- [docs/test-plan.md](docs/test-plan.md) — end-to-end test plan, cross-browser & responsive checks, bugs found and fixed.
+- [docs/user-guide.md](docs/user-guide.md) — shopper user guide with screenshots.
+- [docs/admin-guide.md](docs/admin-guide.md) — admin user guide.
+- [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md) — production + local architecture diagrams (Mermaid).
+- [docs/database/erd.md](docs/database/erd.md) — current database ERD.
+- [docs/ai-reflection.md](docs/ai-reflection.md) — AI tool reflection (2–3 pages).
+- [AI-USAGE.md](AI-USAGE.md) — short AI usage workflow summary.
+- [CHANGELOG.md](CHANGELOG.md) — release notes for M5 and M6.
 
-```bash
-dotnet user-secrets set "Jwt:Key" "dev-secret-key-buckeye-marketplace-2026-abcdef0123456789-xyz"
-dotnet user-secrets set "Jwt:Issuer" "BuckeyeMarketplace"
-dotnet user-secrets set "Jwt:Audience" "BuckeyeMarketplaceClient"
-dotnet user-secrets set "Jwt:ExpiresMinutes" "120"
-```
+## CI/CD pipelines
+- [.github/workflows/ci.yml](.github/workflows/ci.yml) — build + test on every PR.
+- [.github/workflows/deploy-api.yml](.github/workflows/deploy-api.yml) — deploy backend to App Service on push to `main`.
+- [.github/workflows/deploy-frontend.yml](.github/workflows/deploy-frontend.yml) — deploy frontend to Static Web Apps on push to `main`.
 
-(These are the same values I used locally. They are shared here only because the grader requested them in the submission guidelines — they are **not** committed anywhere in the repository.)
+Evidence of green runs: GitHub repo → Actions tab.
 
 ## Run the solution locally
 ```bash
 # API
 cd api
 dotnet user-secrets set "Jwt:Key" "dev-secret-key-buckeye-marketplace-2026-abcdef0123456789-xyz"
-dotnet run                # listens on http://localhost:5062
+dotnet user-secrets set "Jwt:Issuer" "BuckeyeMarketplace"
+dotnet user-secrets set "Jwt:Audience" "BuckeyeMarketplaceClient"
+dotnet user-secrets set "Jwt:ExpiresMinutes" "120"
+dotnet run                # http://localhost:5062
 
-# Frontend (in a second terminal)
+# Frontend (second terminal)
 cd frontend
 npm install
-npm start                 # opens http://localhost:3000
+npm start                 # http://localhost:3000
 ```
 
 ## Test commands
 ```bash
-# Backend unit + integration tests (xUnit)
-dotnet test                       # 17 tests pass
+# Backend unit + integration (xUnit) — 17 tests
+dotnet test
 
-# Frontend unit/component tests (Jest + React Testing Library)
-cd frontend
-CI=true npm test -- --watchAll=false   # 13 tests pass
+# Frontend Jest/RTL — 13 tests
+cd frontend && CI=true npm test -- --watchAll=false
 
-# End-to-end (Playwright) — requires API and frontend running
+# Playwright E2E (requires API + frontend running)
 cd frontend
 npm install --save-dev @playwright/test
 npx playwright install chromium
-npx playwright test                    # runs e2e/checkout.spec.ts
+npx playwright test
 ```
 
-## Security practices applied (W13 checklist)
-
-1. **JWT signing key stored in user secrets, not `appsettings.json`.** Program.cs refuses to start if `Jwt:Key` is missing (except in the `Testing` environment). Running `git grep -i "Jwt:Key"` returns no secret values, only the configuration-key name.
-2. **Broken-object-level-authorization (BOLA) guard on orders.** `GET /api/orders/{id}` and `GET /api/orders/mine` resolve the user ID from the JWT's `NameIdentifier`/`sub` claim rather than trusting a path/query parameter. Non-admin requests for another user's order return 404, not 403 (to avoid leaking existence).
-3. **Role-based authorization on admin endpoints.** `[Authorize(Roles = "Admin")]` on product create/update/delete and on the order list/status-update endpoints. Regular users get a 403, as verified by the `AdminProductEndpoint_WithUserRole_Returns403` integration test.
-4. **Parameterized queries via LINQ/EF Core.** All DB access goes through `DbSet<T>` and LINQ — no `FromSqlRaw` with string interpolation, so there is no SQL-injection surface.
-5. **Secure response headers.** Custom middleware sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer` on every response.
-6. **ASP.NET Core Identity for password hashing.** Passwords are never persisted in plaintext — Identity's default hasher (PBKDF2 with per-user salt) is used. The password policy enforces 8+ chars, one uppercase, and one digit both on the server (Identity options) and on the client (`utils/validation.ts`).
-
-## AI usage
-See [AI-USAGE.md](./AI-USAGE.md) — documents how Claude Code was used for scaffolding, refactoring, and debugging throughout this milestone.
+## Security practices applied (W13 checklist, carried over from M5)
+1. **JWT signing key in user-secrets / App Service settings, not source.** `Program.cs` refuses to start without `Jwt:Key` (except in the `Testing` environment).
+2. **BOLA guard.** `GET /api/orders/mine` and `GET /api/orders/{id}` resolve the user from the JWT subject claim. Cross-user reads return 404, not 403, to avoid leaking existence.
+3. **Role-based authorization.** Admin endpoints are gated with `[Authorize(Roles = "Admin")]`. Verified by `AdminProductEndpoint_WithUserRole_Returns403`.
+4. **Parameterized queries via EF Core LINQ.** No `FromSqlRaw` with string interpolation.
+5. **Secure response headers.** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. Re-applied at the SWA edge via `staticwebapp.config.json`.
+6. **HTTPS-only on Azure.** Both the App Service and Static Web App enforce HTTPS (Azure terminates TLS).
+7. **Identity password hashing (PBKDF2).** Passwords are never stored in plaintext.
+8. **CORS scoped per environment.** `Cors:AllowedOrigins` is config-driven; production lists only the SWA URL.
 
 ## Pre-submission checklist
-- [x] `dotnet build` — no warnings related to this project.
-- [x] `dotnet test` — 17 pass (13 unit + 3 integration + 1 controller/service test).
-- [x] `CI=true npm test -- --watchAll=false` — 13 tests pass.
-- [x] Playwright spec committed at `frontend/e2e/checkout.spec.ts`.
-- [x] No secrets committed (`git grep -i "Jwt:Key" -- ':!SUBMISSION.md' ':!AI-USAGE.md' ':!CHANGELOG.md'` returns only the configuration-key name).
+- [x] `dotnet build amis4630-spring26--Mohamed-.sln --configuration Release` — 0 errors, 0 warnings related to this project.
+- [x] `dotnet test` — 17 pass.
+- [x] `CI=true npm test -- --watchAll=false` — 13 pass.
+- [x] Frontend `npm run build` produces a clean production bundle.
+- [x] Playwright spec committed at [frontend/e2e/checkout.spec.ts](frontend/e2e/checkout.spec.ts).
+- [x] No secrets committed (`git grep -i "Jwt:Key" -- ':!SUBMISSION.md' ':!docs/' ':!CHANGELOG.md' ':!AI-USAGE.md'` returns only the configuration-key name).
 - [x] Admin user seeded on a fresh database.
+- [x] GitHub Actions workflows committed.
+- [x] Frontend points at the production API via `REACT_APP_API_URL` (no hardcoded URL in source).

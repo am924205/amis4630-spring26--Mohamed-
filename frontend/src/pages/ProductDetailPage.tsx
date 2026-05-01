@@ -3,8 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { Product } from "../types/Product";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-
-const API_BASE = "http://localhost:5062";
+import { API_BASE } from "../services/apiClient";
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();

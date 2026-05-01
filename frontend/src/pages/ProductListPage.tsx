@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Product } from "../types/Product";
 import ProductList from "../components/ProductList";
-
-const API_BASE = "http://localhost:5062";
+import { API_BASE } from "../services/apiClient";
 
 const ProductListPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);

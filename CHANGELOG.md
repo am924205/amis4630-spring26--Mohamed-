@@ -1,5 +1,38 @@
 # Changelog
 
+## Milestone 6 — Production Deployment (v1.0)
+
+### Added
+- **Azure deployment.** Frontend on Azure Static Web Apps, backend on Azure App Service (Linux, .NET 10), database on Azure SQL Database (Basic). HTTPS terminated by Azure.
+- **CI/CD pipelines.** GitHub Actions workflows: `ci.yml` (build + test on PRs), `deploy-api.yml` (deploy backend on push to main), `deploy-frontend.yml` (deploy frontend on push to main).
+- **Production-ready configuration.**
+  - API picks SQL Server when the connection string targets Azure SQL, SQLite otherwise.
+  - `Cors:AllowedOrigins` is bound from configuration so each environment supplies its own frontend origin.
+  - Frontend reads `REACT_APP_API_URL` from env and falls back to `http://localhost:5062` for local dev.
+- **Static Web Apps configuration.** `frontend/staticwebapp.config.json` adds `navigationFallback` (so deep links survive a refresh) and re-applies the API's security headers at the edge.
+- **Environment files.** `frontend/.env.production` (committed; non-secret) and `frontend/.env.example` (template for local overrides).
+- **Documentation.**
+  - Comprehensive Milestone 6 section in [README.md](README.md) with stack table, env vars, API table, and deployment summary.
+  - [docs/deployment.md](docs/deployment.md) — Azure CLI runbook + GitHub Actions wiring.
+  - [docs/test-plan.md](docs/test-plan.md) — full E2E test plan (user/admin flows, cross-browser, responsive, bugs fixed).
+  - [docs/user-guide.md](docs/user-guide.md) — shopper guide.
+  - [docs/admin-guide.md](docs/admin-guide.md) — admin guide.
+  - [docs/ai-reflection.md](docs/ai-reflection.md) — consolidated AI usage reflection across SDLC.
+  - Updated [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md) and [docs/database/erd.md](docs/database/erd.md) to reflect the production system.
+
+### Changed
+- `Program.cs` reads `DefaultConnection` (Azure-style key) before falling back to the legacy `Default` key.
+- `DbSeeder` calls `EnsureCreatedAsync` for the SQL Server provider (production) and `MigrateAsync` for SQLite (local), so the SQLite-flavored migrations don't run against Azure SQL.
+- `apiClient.ts` reads the API base URL from `process.env.REACT_APP_API_URL` instead of a hardcoded `http://localhost:5062`.
+
+### Security
+- HTTPS enforced on both the frontend and backend via Azure platform settings.
+- `staticwebapp.config.json` re-applies `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` at the CDN edge in addition to the API middleware.
+- All deployment secrets (Azure publish profile, SWA deployment token) live in GitHub repo secrets — never in source.
+- CORS narrowed to the production SWA origin only; localhost is dropped from the allow list in production by configuration.
+
+---
+
 ## Milestone 5 — Authentication, Security & Order Processing
 
 ### Added

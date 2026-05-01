@@ -14,7 +14,19 @@ public static class DbSeeder
     public static async Task SeedAsync(IServiceProvider services)
     {
         var db = services.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
+
+        // SQL Server in production uses EnsureCreated because the committed
+        // migrations are SQLite-flavored. Local dev (SQLite) keeps using
+        // migrations so EF tooling stays usable.
+        var providerName = db.Database.ProviderName ?? string.Empty;
+        if (providerName.Contains("SqlServer", StringComparison.OrdinalIgnoreCase))
+        {
+            await db.Database.EnsureCreatedAsync();
+        }
+        else
+        {
+            await db.Database.MigrateAsync();
+        }
 
         await SeedRolesAsync(services);
         await SeedAdminUserAsync(services);

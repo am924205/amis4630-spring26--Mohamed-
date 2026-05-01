@@ -18,10 +18,23 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
+    var defaultConnection =
+        builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? builder.Configuration.GetConnectionString("Default");
+
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlite(
-            builder.Configuration.GetConnectionString("Default")
-            ?? "Data Source=BuckeyeMarketplace.db"));
+    {
+        if (!string.IsNullOrWhiteSpace(defaultConnection)
+            && (defaultConnection.Contains("Server=", StringComparison.OrdinalIgnoreCase)
+                || defaultConnection.Contains("database.windows.net", StringComparison.OrdinalIgnoreCase)))
+        {
+            options.UseSqlServer(defaultConnection);
+        }
+        else
+        {
+            options.UseSqlite(defaultConnection ?? "Data Source=BuckeyeMarketplace.db");
+        }
+    });
 }
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -96,11 +109,15 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+var corsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? new[] { "http://localhost:3000" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

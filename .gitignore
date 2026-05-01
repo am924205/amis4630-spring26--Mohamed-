@@ -1,6 +1,10 @@
 # .NET
 api/bin/
 api/obj/
+api/publish/
+api/deploy.zip
+api.Tests/bin/
+api.Tests/obj/
 *.db
 *.db-shm
 *.db-wal
@@ -9,6 +13,13 @@ api/obj/
 frontend/node_modules/
 frontend/build/
 frontend/.env
+frontend/.env.local
+
+# Azure deployment artifacts that contain secrets
+scripts/.azure-output
+
+# Generated PDFs (regenerate with `npx md-to-pdf`)
+submission/
 
 # IDE
 .vs/

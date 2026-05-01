@@ -4,6 +4,23 @@
 
 Buckeye Marketplace is an OSU-only marketplace platform designed to improve safety, communication, and discovery for student buying and selling. It addresses major pain points identified in Milestone 1 including scattered listings, ghosting, lack of verification, and no transaction tracking.
 
+**Live application (Milestone 6):**
+- Frontend: https://agreeable-field-09f60e210.7.azurestaticapps.net
+- Backend API: https://buckeye-api-mohamed560.azurewebsites.net
+- Swagger / API docs: https://buckeye-api-mohamed560.azurewebsites.net/swagger
+
+**Technology stack**
+
+| Layer    | Technology                                            | Version |
+|----------|-------------------------------------------------------|---------|
+| Frontend | React (Create React App) + TypeScript + React Router  | 19 / 4.9 / 7 |
+| Backend  | ASP.NET Core Web API + EF Core + ASP.NET Core Identity | .NET 10 |
+| Auth     | JWT (HS256) signed with a key from user-secrets / App Settings | — |
+| Database | SQLite (local) · Azure SQL Database (production)      | — |
+| Tests    | xUnit + WebApplicationFactory · Jest + RTL · Playwright | — |
+| Hosting  | Azure App Service (API) · Azure Static Web Apps (frontend) · Azure SQL (DB) | — |
+| CI/CD    | GitHub Actions                                        | — |
+
 ---
 
 ## Table of Contents
@@ -24,6 +41,15 @@ Buckeye Marketplace is an OSU-only marketplace platform designed to improve safe
   - [Cart API Endpoints](#cart-api-endpoints)
   - [M4 AI Usage Summary](#m4-ai-usage-summary)
 - [Milestone 5: Auth, Orders & Admin](#milestone-5-auth-orders--admin)
+- [Milestone 6: Production Deployment](#milestone-6-production-deployment)
+  - [Local development setup](#local-development-setup)
+  - [Production deployment (Azure)](#production-deployment-azure)
+  - [Environment variables](#environment-variables)
+  - [CI/CD pipeline](#cicd-pipeline)
+  - [API documentation](#api-documentation)
+  - [Testing & QA](#testing--qa)
+  - [User & admin documentation](#user--admin-documentation)
+  - [AI tool usage summary](#ai-tool-usage-summary-across-the-project)
 
 ---
 
@@ -388,3 +414,119 @@ Seeded accounts (created on first run against a fresh DB):
 - [SUBMISSION.md](SUBMISSION.md) — full run/test/secret instructions and the security checklist.
 - [AI-USAGE.md](AI-USAGE.md) — honest account of how Claude Code was used as a pair-programming assistant during this milestone.
 - [CHANGELOG.md](CHANGELOG.md) — Added/Security/Changed/Removed notes for M5.
+
+---
+
+## Milestone 6: Production Deployment
+
+Milestone 6 takes the working Milestone 5 application and deploys it to Azure with an automated CI/CD pipeline, end-to-end testing, and full project documentation. This is the v1.0 release.
+
+### What's new in M6
+
+- **Production deployment.** Frontend on Azure Static Web Apps, backend on Azure App Service (Linux, .NET 10), database on Azure SQL Database (Basic tier). HTTPS is enforced on every endpoint and is terminated by Azure.
+- **CI/CD pipeline.** Three GitHub Actions workflows:
+  - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — runs `dotnet build`, `dotnet test`, `npm test`, and `npm run build` on every pull request.
+  - [`.github/workflows/deploy-api.yml`](.github/workflows/deploy-api.yml) — builds, tests, and deploys the API to App Service on push to `main`.
+  - [`.github/workflows/deploy-frontend.yml`](.github/workflows/deploy-frontend.yml) — builds, tests, and deploys the frontend to Azure Static Web Apps on push to `main`.
+- **Environment-aware configuration.** The API switches between SQLite (local) and SQL Server (Azure) based on the connection string. CORS origins, JWT key, issuer, and audience are read from configuration so they can be supplied via App Service Application settings without code changes.
+- **Production frontend.** `apiClient.ts` reads `REACT_APP_API_URL` so the same build works locally (`.env.local`) and in production (`.env.production` / SWA Application settings).
+- **Static Web Apps config.** [`frontend/staticwebapp.config.json`](frontend/staticwebapp.config.json) handles deep-link fallback to `index.html` and re-applies the security headers.
+- **Documentation.** Comprehensive README, [docs/test-plan.md](docs/test-plan.md) end-to-end test plan, [docs/user-guide.md](docs/user-guide.md), [docs/admin-guide.md](docs/admin-guide.md), [docs/deployment.md](docs/deployment.md), and the [docs/ai-reflection.md](docs/ai-reflection.md) reflection.
+
+### Local development setup
+
+**Prerequisites:** .NET SDK 10+, Node.js 20+, and the `dotnet-ef` global tool (only needed if you regenerate migrations).
+
+```bash
+# 1. Configure user secrets for the API (first run only)
+cd api
+dotnet user-secrets set "Jwt:Key" "dev-secret-key-buckeye-marketplace-2026-abcdef0123456789-xyz"
+dotnet user-secrets set "Jwt:Issuer" "BuckeyeMarketplace"
+dotnet user-secrets set "Jwt:Audience" "BuckeyeMarketplaceClient"
+dotnet user-secrets set "Jwt:ExpiresMinutes" "120"
+
+# 2. Run the API on http://localhost:5062
+dotnet run
+
+# 3. In a second terminal, run the React frontend on http://localhost:3000
+cd frontend
+npm install
+npm start
+```
+
+The seeder creates two test accounts on first run:
+
+| Role  | Email                              | Password   |
+|-------|------------------------------------|------------|
+| Admin | admin@buckeyemarketplace.com       | Admin123!  |
+| User  | user@buckeyemarketplace.com        | User1234!  |
+
+### Production deployment (Azure)
+
+Step-by-step Azure CLI commands and the workflow walkthrough are in [docs/deployment.md](docs/deployment.md). At a glance:
+
+1. `az group create` an `rg-buckeye-marketplace` resource group in `eastus`.
+2. `az sql server create` and `az sql db create` provision the Azure SQL Database. Allow Azure services through the firewall (`0.0.0.0`).
+3. `az appservice plan create --sku F1 --is-linux` and `az webapp create --runtime "DOTNETCORE:10.0"` provision the API host.
+4. Set `DefaultConnection` in App Service → Connection strings (`SQLAzure`) and `Jwt:Key` / `Jwt:Issuer` / `Jwt:Audience` / `Cors:AllowedOrigins:0` in Application settings.
+5. Create an Azure Static Web App linked to this GitHub repo (or use a manual deploy from `frontend/build`). Set `REACT_APP_API_URL` in SWA → Application settings.
+6. Add `AZURE_API_PUBLISH_PROFILE` and `AZURE_STATIC_WEB_APPS_API_TOKEN` as repo secrets so the deploy workflows can authenticate.
+7. Push to `main` — both `deploy-api.yml` and `deploy-frontend.yml` run, build, test, and deploy.
+
+### Environment variables
+
+| Variable                       | Where it lives                         | Why                                                          |
+|--------------------------------|----------------------------------------|--------------------------------------------------------------|
+| `DefaultConnection`            | App Service → Connection strings (`SQLAzure`) | Azure SQL connection string used by EF Core                |
+| `Jwt:Key`                      | App Service → Application settings · user-secrets locally | Symmetric key used to sign JWTs                            |
+| `Jwt:Issuer` / `Jwt:Audience`  | App Service → Application settings · user-secrets locally | JWT validation parameters                                  |
+| `Cors:AllowedOrigins:0` (etc.) | App Service → Application settings     | Frontend origins allowed by the CORS policy                 |
+| `REACT_APP_API_URL`            | `frontend/.env.production` (committed) or SWA Application settings | Base URL the frontend uses for API calls                    |
+| `AZURE_API_PUBLISH_PROFILE`    | GitHub repo secret                     | Used by `deploy-api.yml` to authenticate with App Service   |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | GitHub repo secret                  | Used by `deploy-frontend.yml` to authenticate with SWA      |
+
+### CI/CD pipeline
+
+`ci.yml` runs build + test for both backend and frontend on every pull request. `deploy-api.yml` and `deploy-frontend.yml` run on push to `main` and only deploy if the build and test stages succeed. The frontend deploy uses the official `Azure/static-web-apps-deploy` action; the backend uses `azure/webapps-deploy@v3` with a publish profile.
+
+The Actions tab on GitHub records each run; passing runs are required before merging into `main`.
+
+### API documentation
+
+Interactive Swagger / OpenAPI UI is exposed at `/swagger` in the Development environment (and is enabled in production for the demo). Endpoint summary:
+
+| Endpoint                                  | Method | Auth        | Description                              |
+|-------------------------------------------|--------|-------------|------------------------------------------|
+| `/api/products`                           | GET    | anonymous   | List all products                         |
+| `/api/products/{id}`                      | GET    | anonymous   | Get a single product                      |
+| `/api/products`                           | POST   | Admin       | Create product                            |
+| `/api/products/{id}`                      | PUT    | Admin       | Update product                            |
+| `/api/products/{id}`                      | DELETE | Admin       | Delete product                            |
+| `/api/auth/register`                      | POST   | anonymous   | Register a user, returns JWT              |
+| `/api/auth/login`                         | POST   | anonymous   | Authenticate, returns JWT                 |
+| `/api/cart`                               | GET    | User        | Get the caller's cart                     |
+| `/api/cart`                               | POST   | User        | Add item to cart                          |
+| `/api/cart/{cartItemId}`                  | PUT    | User        | Update cart item quantity                 |
+| `/api/cart/{cartItemId}`                  | DELETE | User        | Remove item from cart                     |
+| `/api/cart/clear`                         | DELETE | User        | Clear cart                                |
+| `/api/orders`                             | POST   | User        | Place order from current cart             |
+| `/api/orders/mine`                        | GET    | User        | Get the caller's order history            |
+| `/api/orders/{id}`                        | GET    | User/Admin  | Order detail (BOLA-scoped)                |
+| `/api/orders`                             | GET    | Admin       | List all orders                           |
+| `/api/orders/{orderId}/status`            | PUT    | Admin       | Update order status                       |
+
+### Testing & QA
+
+- `dotnet test` — 17 xUnit tests pass (13 unit + 4 integration via `WebApplicationFactory<Program>` and the EF Core in-memory provider).
+- `CI=true npm test -- --watchAll=false` — 13 Jest/RTL tests pass.
+- `npx playwright test` — happy-path E2E ([`frontend/e2e/checkout.spec.ts`](frontend/e2e/checkout.spec.ts)).
+- Manual end-to-end test plan: [docs/test-plan.md](docs/test-plan.md) — covers all user/admin flows, cross-browser (Chrome/Firefox/Safari/Edge), mobile responsiveness, and bugs found and fixed during deployment.
+
+### User & admin documentation
+
+- [docs/user-guide.md](docs/user-guide.md) — how to browse, sign up, add items to cart, place an order, and review order history.
+- [docs/admin-guide.md](docs/admin-guide.md) — how to manage products and update order statuses.
+
+### AI tool usage summary across the project
+
+A milestone-by-milestone summary of AI tool usage is collected in this README under each milestone section, plus the consolidated reflection in [docs/ai-reflection.md](docs/ai-reflection.md). The shorter [AI-USAGE.md](AI-USAGE.md) at the repo root captures the workflow used throughout: prompts authored by me, generated code reviewed and tested before commit, security and architecture decisions made by me. No real credentials, secrets, or production data were ever shared with the assistant.

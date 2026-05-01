@@ -1,4 +1,5 @@
-export const API_BASE = "http://localhost:5062";
+export const API_BASE =
+  process.env.REACT_APP_API_URL?.replace(/\/+$/, "") || "http://localhost:5062";
 
 const TOKEN_KEY = "bm.authToken";
 const USER_KEY = "bm.authUser";
